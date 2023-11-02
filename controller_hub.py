@@ -1,0 +1,30 @@
+from mininet.net import Mininet
+from mininet.node import Hub, Controller  # Change from OVSSwitch to Hub
+from mininet.topo import Topo
+
+class CustomTopology(Topo):
+    def __init__(self):
+        Topo.__init__(self)
+        # Add 2 hub switches to the topology (Hub instead of OVSSwitch)
+        switch1 = self.addSwitch('s1', cls=Hub)
+        switch2 = self.addSwitch('s2', cls=Hub)
+
+        # Add 4 hosts to the topology
+        host1 = self.addHost('h1')
+        host2 = self.addHost('h2')
+        host3 = self.addHost('h3')
+        host4 = self.addHost('h4')
+        host5 = self.addHost('h5')
+
+        # Connect hosts to switches
+        self.addLink(host1, switch1)
+        self.addLink(host2, switch1)
+        self.addLink(host3, switch1)
+        self.addLink(host4, switch2)
+        self.addLink(host5, switch2)
+
+        # Connect switches together
+        self.addLink(switch1, switch2)
+
+# Create Mininet network with the custom topology
+topos = {'first': (lambda: CustomTopology())}
