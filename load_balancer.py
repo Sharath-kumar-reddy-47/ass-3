@@ -7,7 +7,8 @@ from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
 from ryu.lib.packet import ether_types
 from ryu.lib.packet import arp
-from ryu.lib.packet import ipv4  # Import the ipv4 module
+from ryu.lib.packet import icmp
+from ryu.lib.packet import ipv4
 
 class SimpleSwitch13(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -15,10 +16,10 @@ class SimpleSwitch13(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(SimpleSwitch13, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
-        self.server_ips = ["10.0.0.4", "10.0.0.5"]  # IPs of H4 and H5
         self.virtual_ip = "10.0.0.42"
+        self.server_ips = ["10.0.0.4", "10.0.0.5"]
         self.server_count = len(self.server_ips)
-        self.next_server_index = 0 
+        self.next_server_index = 0
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
@@ -49,10 +50,8 @@ class SimpleSwitch13(app_manager.RyuApp):
         eth = pkt.get_protocols(ethernet.ethernet)[0]
 
         if eth.ethertype == ether_types.ETH_TYPE_ARP:
-            # Handle ARP packets
             self.handle_arp_packet(datapath, in_port, pkt)
         elif eth.ethertype == ether_types.ETH_TYPE_IP:
-            # Handle IPv4 packets
             self.handle_ipv4_packet(datapath, in_port, pkt)
 
     def handle_arp_packet(self, datapath, in_port, pkt):
@@ -60,14 +59,13 @@ class SimpleSwitch13(app_manager.RyuApp):
         arp = pkt.get_protocols(arp.arp)[0]
 
         if arp.opcode == arp.ARP_REQUEST and arp.dst_ip == self.virtual_ip:
-            # If ARP request for virtual IP is received, reply with the MAC of switch port
             self.reply_to_arp(datapath, eth, arp, in_port)
 
     def reply_to_arp(self, datapath, eth, arp, in_port):
         ofproto = datapath.ofproto
 
         dst_mac = eth.src
-        src_mac = '00:00:00:00:00:0' + str(in_port)  # Create a unique MAC address for each port
+        src_mac = '00:00:00:00:00:0' + str(in_port)
         target_ip = arp.src_ip
         sender_ip = arp.dst_ip
 
@@ -86,18 +84,30 @@ class SimpleSwitch13(app_manager.RyuApp):
         datapath.send_msg(out)
 
     def handle_ipv4_packet(self, datapath, in_port, pkt):
-        ip = pkt.get_protocols(ipv4.ipv4)[0]
+        ip = pkt.get_protocol(ipv4.ipv4)
         dst_ip = ip.dst
 
         if dst_ip == self.virtual_ip:
-            # If the destination IP is the virtual IP, balance the traffic
-            out_port = self.get_next_server_port(datapath)
-            actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-            match = datapath.ofproto_parser.OFPMatch(in_port=in_port, eth_type=ether_types.ETH_TYPE_IP, ipv4_dst=self.virtual_ip)
-            self.add_flow(datapath, 1, match, actions)
+            self.forward_to_server(datapath, in_port, pkt)
 
-    def get_next_server_port(self, datapath):
-        # Round-robin load balancing to distribute traffic to servers
+    def forward_to_server(self, datapath, in_port, pkt):
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
+
+        out_port = self.get_server_port(datapath)
+        actions = [parser.OFPActionOutput(out_port)]
+
+        data = pkt.data
+
+        match = parser.OFPMatch(in_port=in_port)
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
+        mod = parser.OFPFlowMod(datapath=datapath, priority=1, match=match, instructions=inst)
+        datapath.send_msg(mod)
+
+        out = parser.OFPPacketOut(datapath=datapath, buffer_id=ofproto.OFP_NO_BUFFER, in_port=in_port, actions=actions, data=data)
+        datapath.send_msg(out)
+
+    def get_server_port(self, datapath):
         out_port = (self.next_server_index % self.server_count) + 1
         self.next_server_index = (self.next_server_index + 1) % self.server_count
         return out_port
@@ -106,9 +116,9 @@ class SimpleSwitch13(app_manager.RyuApp):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
-        inst = [datapath.ofproto_parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
         if buffer_id:
-            mod = datapath.ofproto_parser.OFPFlowMod(datapath=datapath, buffer_id=buffer_id, priority=priority, match=match, instructions=inst)
+            mod = parser.OFPFlowMod(datapath=datapath, buffer_id=buffer_id, priority=priority, match=match, instructions=inst)
         else:
-            mod = datapath.ofproto_parser.OFPFlowMod(datapath=datapath, priority=priority, match=match, instructions=inst)
+            mod = parser.OFPFlowMod(datapath=datapath, priority=priority, match=match, instructions=inst)
         datapath.send_msg(mod)
