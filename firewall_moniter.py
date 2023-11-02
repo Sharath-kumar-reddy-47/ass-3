@@ -16,6 +16,8 @@ class FirewallMonitor(app_manager.RyuApp):
         self.firewall_rules = [
             {"src_ip": "10.0.0.1", "dst_ip": "10.0.0.4"},  # H1 to H4
             {"src_ip": "10.0.0.3", "dst_ip": "10.0.0.5"},  # H3 to H5
+            {"src_ip": "10.0.0.2", "dst_ip": "10.0.0.3"},  # H2 to H3
+            {"src_ip": "10.0.0.1", "dst_ip": "10.0.0.2"},  # H1 to H2
         ]
         self.packet_count = 0  # Packet count from H3 on S1
 
@@ -30,7 +32,7 @@ class FirewallMonitor(app_manager.RyuApp):
             match = OFPMatch(eth_type=ether_types.ETH_TYPE_IP,
                              ipv4_src=rule["src_ip"],
                              ipv4_dst=rule["dst_ip"])
-            actions = [parser.OFPActionOutput(ofproto.OFPP_FLOOD)]
+            actions = []
             self.add_flow(datapath, 1, match, actions)
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
@@ -54,7 +56,8 @@ class FirewallMonitor(app_manager.RyuApp):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
-        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
+                                             actions)]
         if buffer_id:
             mod = parser.OFPFlowMod(datapath=datapath, buffer_id=buffer_id, priority=priority, match=match, instructions=inst)
         else:
