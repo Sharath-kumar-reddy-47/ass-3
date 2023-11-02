@@ -30,7 +30,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         super(SimpleSwitch13, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
         self.blocked_pairs = {
-            ('h1', 'h4'),
+            ('10.0.0.1', '10.0.0.4'),
             ('10.0.0.2', '10.0.0.5'),
             ('10.0.0.3', '10.0.0.5')
         }
@@ -89,6 +89,7 @@ class SimpleSwitch13(app_manager.RyuApp):
             return
         dst = eth.dst
         src = eth.src
+        self.logger.info("Blocked traffic between %s and %s", src, dst)
         if (src, dst) in self.blocked_pairs:
             self.logger.info("Blocked traffic between %s and %s", src, dst)
             return
