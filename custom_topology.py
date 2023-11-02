@@ -28,5 +28,7 @@ class CustomTopology(Topo):
         
 
 # Create Mininet network with the custom topology
-topos = {'first':(lambda:CustomTopology())}
-
+if __name__=="__main__":
+    topo=CustomTopology()
+    net=Mininet(topo)
+    net.start()
