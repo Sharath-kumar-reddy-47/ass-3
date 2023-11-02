@@ -3,7 +3,6 @@ from ryu.controller import ofp_event
 from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 from ryu.ofproto import ofproto_v1_3
-from ryu.ofproto_parser import parser  
 from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
 from ryu.lib.packet import ether_types
@@ -28,12 +27,14 @@ class SimpleSwitch13(app_manager.RyuApp):
         parser = datapath.ofproto_parser
 
         # Handle ARP requests for the virtual IP address
-        self.handle_arp_request(datapath, parser, self.virtual_ip)
+        self.handle_arp_request(datapath, self.virtual_ip)
 
-    def handle_arp_request(self, datapath, parser, target_ip):
+    def handle_arp_request(self, datapath, target_ip):
+        ofproto = datapath.ofproto
+
         # Handle ARP requests for the virtual IP address
-        actions = [parser.OFPActionOutput(ofproto_v1_3.OFPP_FLOOD)]
-        match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_ARP, arp_tpa=target_ip)
+        actions = [datapath.ofproto_parser.OFPActionOutput(ofproto.OFPP_FLOOD)]
+        match = datapath.ofproto_parser.OFPMatch(eth_type=ether_types.ETH_TYPE_ARP, arp_tpa=target_ip)
         self.add_flow(datapath, 1, match, actions)
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
@@ -64,7 +65,6 @@ class SimpleSwitch13(app_manager.RyuApp):
 
     def reply_to_arp(self, datapath, eth, arp, in_port):
         ofproto = datapath.ofproto
-        parser = datapath.ofproto_parser
 
         dst_mac = eth.src
         src_mac = '00:00:00:00:00:0' + str(in_port)  # Create a unique MAC address for each port
@@ -80,9 +80,9 @@ class SimpleSwitch13(app_manager.RyuApp):
 
         data = arp_reply.data
 
-        actions = [parser.OFPActionOutput(in_port, ofproto.OFPCML_NO_BUFFER)]
-        out = parser.OFPPacketOut(datapath=datapath, buffer_id=ofproto.OFP_NO_BUFFER,
-                                  in_port=ofproto.OFPP_CONTROLLER, actions=actions, data=data)
+        actions = [datapath.ofproto_parser.OFPActionOutput(in_port, ofproto.OFPCML_NO_BUFFER)]
+        out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath, buffer_id=ofproto.OFP_NO_BUFFER,
+                                                  in_port=ofproto.OFPP_CONTROLLER, actions=actions, data=data)
         datapath.send_msg(out)
 
     def handle_ipv4_packet(self, datapath, in_port, pkt):
@@ -92,8 +92,8 @@ class SimpleSwitch13(app_manager.RyuApp):
         if dst_ip == self.virtual_ip:
             # If the destination IP is the virtual IP, balance the traffic
             out_port = self.get_next_server_port(datapath)
-            actions = [parser.OFPActionOutput(out_port)]
-            match = parser.OFPMatch(in_port=in_port, eth_type=ether_types.ETH_TYPE_IP, ipv4_dst=self.virtual_ip)
+            actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+            match = datapath.ofproto_parser.OFPMatch(in_port=in_port, eth_type=ether_types.ETH_TYPE_IP, ipv4_dst=self.virtual_ip)
             self.add_flow(datapath, 1, match, actions)
 
     def get_next_server_port(self, datapath):
@@ -106,9 +106,9 @@ class SimpleSwitch13(app_manager.RyuApp):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
-        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
+        inst = [datapath.ofproto_parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
         if buffer_id:
-            mod = parser.OFPFlowMod(datapath=datapath, buffer_id=buffer_id, priority=priority, match=match, instructions=inst)
+            mod = datapath.ofproto_parser.OFPFlowMod(datapath=datapath, buffer_id=buffer_id, priority=priority, match=match, instructions=inst)
         else:
-            mod = parser.OFPFlowMod(datapath=datapath, priority=priority, match=match, instructions=inst)
+            mod = datapath.ofproto_parser.OFPFlowMod(datapath=datapath, priority=priority, match=match, instructions=inst)
         datapath.send_msg(mod)
