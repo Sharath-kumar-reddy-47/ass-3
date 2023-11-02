@@ -40,6 +40,8 @@ class SimpleSwitch13(app_manager.RyuApp):
         a3=ipaddress.IPv6Address(f"::ffff:{a3}")
         a4=ipaddress.IPv6Address(f"::ffff:{a4}")
         a5=ipaddress.IPv6Address(f"::ffff:{a5}")
+        
+        self.logger.info("packet in %s %s %s %s %s", a1, a2, a3, a4, a5)
         self.blocked_pairs = {
             (a1, a4),
             (a2, a5),
