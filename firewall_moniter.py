@@ -21,6 +21,7 @@ from ryu.ofproto import ofproto_v1_3
 from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
 from ryu.lib.packet import ether_types
+import ipaddress
 
 
 class SimpleSwitch13(app_manager.RyuApp):
@@ -29,10 +30,20 @@ class SimpleSwitch13(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(SimpleSwitch13, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
+        a1="10.0.0.1"
+        a2="10.0.0.2"
+        a3="10.0.0.3"
+        a4="10.0.0.4"
+        a5="10.0.0.5"
+        a1=ipaddress.IPv6Address(f"::ffff:{a1}")
+        a2=ipaddress.IPv6Address(f"::ffff:{a2}")
+        a3=ipaddress.IPv6Address(f"::ffff:{a3}")
+        a4=ipaddress.IPv6Address(f"::ffff:{a4}")
+        a5=ipaddress.IPv6Address(f"::ffff:{a5}")
         self.blocked_pairs = {
-            ('10.0.0.1', '10.0.0.4'),
-            ('10.0.0.2', '10.0.0.5'),
-            ('10.0.0.3', '10.0.0.5')
+            (a1, a4),
+            (a2, a5),
+            (a3, a5)
         }
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
