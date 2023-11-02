@@ -30,16 +30,16 @@ class SimpleSwitch13(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(SimpleSwitch13, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
-        a1="10.0.0.1"
-        a2="10.0.0.2"
-        a3="10.0.0.3"
-        a4="10.0.0.4"
-        a5="10.0.0.5"
-        a1=ipaddress.IPv6Address(f"::ffff:{a1}")
-        a2=ipaddress.IPv6Address(f"::ffff:{a2}")
-        a3=ipaddress.IPv6Address(f"::ffff:{a3}")
-        a4=ipaddress.IPv6Address(f"::ffff:{a4}")
-        a5=ipaddress.IPv6Address(f"::ffff:{a5}")
+        a1="00:00:00:00:00:01"
+        a2="00:00:00:00:00:02"
+        a3="00:00:00:00:00:03"
+        a4="00:00:00:00:00:04"
+        a5="00:00:00:00:00:05"
+        # a1=ipaddress.IPv6Address(f"::ffff:{a1}")
+        # a2=ipaddress.IPv6Address(f"::ffff:{a2}")
+        # a3=ipaddress.IPv6Address(f"::ffff:{a3}")
+        # a4=ipaddress.IPv6Address(f"::ffff:{a4}")
+        # a5=ipaddress.IPv6Address(f"::ffff:{a5}")
         
         self.logger.info("packet in %s %s %s %s %s", a1, a2, a3, a4, a5)
         self.blocked_pairs = {
