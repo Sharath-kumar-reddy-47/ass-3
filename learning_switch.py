@@ -7,6 +7,7 @@ from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
 from ryu.lib.packet import ether_types
 from ryu.lib.packet import ipv4
+from ryu.lib.packet import icmp
 
 class SimpleSwitch13(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -14,14 +15,11 @@ class SimpleSwitch13(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(SimpleSwitch13, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
-
-    def _is_blocked_traffic(self, src, dst):
-        blocked_pairs = {
-            ('h1', 'h4'),
-            ('h2', 'h5'),
-            ('h3', 'h5')
+        self.blocked_pairs = {
+            ('10.0.0.1', '10.0.0.4'),
+            ('10.0.0.2', '10.0.0.5'),
+            ('10.0.0.3', '10.0.0.5')
         }
-        return (src, dst) in blocked_pairs or (dst, src) in blocked_pairs
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
@@ -69,13 +67,13 @@ class SimpleSwitch13(app_manager.RyuApp):
         if eth.ethertype == ether_types.ETH_TYPE_IP:
             ip_packet = pkt.get_protocol(ipv4.ipv4)
             if ip_packet:
-                if (ip_packet.src, ip_packet.dst) in blocked_pairs:
+                if (ip_packet.src, ip_packet.dst) in self.blocked_pairs:
                     self.logger.info("Blocked traffic between %s and %s", ip_packet.src, ip_packet.dst)
                     return
-
-        if self._is_blocked_traffic(src, dst):
-            self.logger.info("Blocked traffic between %s and %s", src, dst)
-            return
+                if ip_packet.proto == 1:  # Check for ICMP (1) protocol
+                    icmp_packet = pkt.get_protocol(icmp.icmp)
+                    if icmp_packet:
+                        self.logger.info("Allowed ICMP traffic between %s and %s", ip_packet.src, ip_packet.dst)
 
         dpid = datapath.id
         self.mac_to_port.setdefault(dpid, {})
