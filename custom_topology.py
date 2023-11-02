@@ -1,6 +1,8 @@
 from mininet.net import Mininet
 from mininet.node import OVSSwitch, Controller
 from mininet.topo import Topo
+from mininet.node import RemoteController
+from mininet.cli import CLI
 
 #uvjhu
 class CustomTopology(Topo):
@@ -30,6 +32,10 @@ class CustomTopology(Topo):
 
 # Create Mininet network with the custom topology
 if __name__=="__main__":
-    topo=CustomTopology()
-    net=Mininet(topo)
+    topo = CustomTopology()
+    c1 = RemoteController('c1', ip='127.0.0.1')
+    net = Mininet(topo=topo, controller=c1)
     net.start()
+    #net.pingAll()
+    CLI(net)
+    net.stop()
