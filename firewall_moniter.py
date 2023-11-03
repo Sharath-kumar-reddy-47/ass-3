@@ -95,7 +95,7 @@ class SimpleSwitch13(app_manager.RyuApp):
 
         pkt = packet.Packet(msg.data)
         eth = pkt.get_protocols(ethernet.ethernet)[0]
-        ip_header = pkt.get_protocols(ipv4.ipv4)[0]
+        ip_head= pkt.get_protocols(ipv4.ipv4)
 
 
         if eth.ethertype == ether_types.ETH_TYPE_LLDP:
@@ -103,7 +103,8 @@ class SimpleSwitch13(app_manager.RyuApp):
             return
         dst = eth.dst
         src = eth.src
-        if ip_header:
+        if ip_head:
+            ip_header=ip_head[0]
             print("no ip")
             dst=ip_header.dst
             src=ip_header.src
