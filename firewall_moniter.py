@@ -103,9 +103,11 @@ class SimpleSwitch13(app_manager.RyuApp):
             return
         dst = eth.dst
         src = eth.src
-        dst=ip_header.dst
-        src=ip_header.src
-        self.logger.info("Blocked traffic between %s and %s", src, dst)
+        if ip_header:
+            print("no ip")
+            dst=ip_header.dst
+            src=ip_header.src
+        print(src,dst)
         if (src, dst) in self.blocked_pairs:
             self.logger.info("Blocked traffic between %s and %s", src, dst)
             return
