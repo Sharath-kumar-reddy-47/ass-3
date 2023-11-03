@@ -36,11 +36,6 @@ class SimpleSwitch13(app_manager.RyuApp):
         a3="10.0.0.3"
         a4="10.0.0.4"
         a5="10.0.0.5"
-        # a1=ipaddress.IPv6Address(f"::ffff:{a1}")
-        # a2=ipaddress.IPv6Address(f"::ffff:{a2}")
-        # a3=ipaddress.IPv6Address(f"::ffff:{a3}")
-        # a4=ipaddress.IPv6Address(f"::ffff:{a4}")
-        # a5=ipaddress.IPv6Address(f"::ffff:{a5}")
         
         self.logger.info("packet in %s %s %s %s %s", a1, a2, a3, a4, a5)
         self.blocked_pairs = {
@@ -108,6 +103,12 @@ class SimpleSwitch13(app_manager.RyuApp):
             print("no ip")
             dst=ip_header.dst
             src=ip_header.src
+            
+        if src=="10.0.0.3":
+            self.logger.info("H3 is used for sending a packet%s", src)
+        if dst=="10.0.0.3":
+            self.logger.info("H3 is used for receiving a packet%s", dst)
+        
         print(src,dst)
         if (src, dst) in self.blocked_pairs:
             self.logger.info("Blocked traffic between %s and %s", src, dst)
