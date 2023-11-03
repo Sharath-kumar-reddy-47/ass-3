@@ -44,9 +44,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         
         self.logger.info("packet in %s %s %s %s %s", a1, a2, a3, a4, a5)
         self.blocked_pairs = {
-            (a1, a4),
-            (a2, a5),
-            (a3, a5)
+            (a1, a4)
         }
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
