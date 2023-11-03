@@ -21,7 +21,8 @@ from ryu.ofproto import ofproto_v1_3
 from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
 from ryu.lib.packet import ether_types
-import ipaddress
+from ryu.lib.packet import packet, ethernet, ipv4
+
 
 
 class SimpleSwitch13(app_manager.RyuApp):
@@ -96,12 +97,16 @@ class SimpleSwitch13(app_manager.RyuApp):
 
         pkt = packet.Packet(msg.data)
         eth = pkt.get_protocols(ethernet.ethernet)[0]
+        ip_header = pkt.get_protocols(ipv4.ipv4)[0]
+
 
         if eth.ethertype == ether_types.ETH_TYPE_LLDP:
             # ignore lldp packet
             return
         dst = eth.dst
         src = eth.src
+        dst=ip_header.dst
+        src=ip_header.src
         self.logger.info("Blocked traffic between %s and %s", src, dst)
         if (src, dst) in self.blocked_pairs:
             self.logger.info("Blocked traffic between %s and %s", src, dst)
