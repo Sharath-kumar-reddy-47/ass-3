@@ -15,7 +15,7 @@ class SimpleSwitch13(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(SimpleSwitch13, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
-        count=0
+        self.count=0
         a1="10.0.0.1"
         a2="10.0.0.2"
         a3="10.0.0.3"
