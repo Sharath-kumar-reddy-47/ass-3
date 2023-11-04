@@ -88,7 +88,7 @@ class SimpleSwitch13(app_manager.RyuApp):
             src=ip_header.src
         if (src, dst) in self.blocked_pairs:
             self.logger.info("Blocked traffic between %s and %s", src, dst)
-            return
+            exit
 
         dpid = datapath.id
         dpid = datapath.id
