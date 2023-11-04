@@ -3,14 +3,8 @@ from ryu.controller import ofp_event
 from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 from ryu.ofproto import ofproto_v1_3
-from ryu.lib.packet import packet
-from ryu.lib.packet import ethernet
-from ryu.lib.packet import ether_types
-from ryu.lib.packet import arp
-from ryu.lib.packet import ipv4
+from ryu.lib.packet import packet, ethernet, ether_types, arp, ipv4
 from ryu.ofproto.ofproto_v1_3_parser import OFPActionSetField, OFPMatch
-from ryu.lib import mac
-from ryu.ofproto import ofproto_v1_3_parser
 
 class SimpleLoadBalancer(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -36,8 +30,9 @@ class SimpleLoadBalancer(app_manager.RyuApp):
         ofproto = datapath.ofproto
 
         # Handle ARP requests for the virtual IP address
-        actions = [datapath.ofproto_parser.OFPActionOutput(ofproto.OFPP_FLOOD)]
-        match = datapath.ofproto_parser.OFPMatch(eth_type=ether_types.ETH_TYPE_ARP, arp_tpa=target_ip)
+        actions = [OFPActionSetField(eth_dst="ff:ff:ff:ff:ff:ff"),
+                   ofproto_v1_3_parser.OFPActionOutput(ofproto.OFPP_FLOOD)]
+        match = OFPMatch(eth_type=ether_types.ETH_TYPE_ARP, arp_op=arp.ARP_REQUEST, arp_tpa=target_ip)
         self.add_flow(datapath, 1, match, actions)
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
@@ -60,19 +55,19 @@ class SimpleLoadBalancer(app_manager.RyuApp):
 
     def handle_arp_packet(self, datapath, in_port, pkt):
         eth = pkt.get_protocols(ethernet.ethernet)[0]
-        arp = pkt.get_protocols(arp.arp)[0]
+        arp_pkt = pkt.get_protocols(arp.arp)[0]
 
-        if arp.opcode == arp.ARP_REQUEST and arp.dst_ip == self.virtual_ip:
+        if arp_pkt.opcode == arp.ARP_REQUEST and arp_pkt.dst_ip == self.virtual_ip:
             # If ARP request for virtual IP is received, reply with the MAC of switch port
-            self.reply_to_arp(datapath, eth, arp, in_port)
+            self.reply_to_arp(datapath, eth, arp_pkt, in_port)
 
-    def reply_to_arp(self, datapath, eth, arp, in_port):
+    def reply_to_arp(self, datapath, eth, arp_pkt, in_port):
         ofproto = datapath.ofproto
 
         dst_mac = eth.src
         src_mac = '00:00:00:00:00:0' + str(in_port)  # Create a unique MAC address for each port
-        target_ip = arp.src_ip
-        sender_ip = arp.dst_ip
+        target_ip = arp_pkt.src_ip
+        sender_ip = arp_pkt.dst_ip
 
         arp_reply = packet.Packet()
         arp_reply.add_protocol(ethernet.ethernet(ethertype=ether_types.ETH_TYPE_ARP,
@@ -83,15 +78,15 @@ class SimpleLoadBalancer(app_manager.RyuApp):
 
         data = arp_reply.data
 
-        actions = [datapath.ofproto_parser.OFPActionOutput(in_port, ofproto.OFPCML_NO_BUFFER)]
-        out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath, buffer_id=ofproto.OFP_NO_BUFFER,
-                                                  in_port=ofproto.OFPP_CONTROLLER, actions=actions, data=data)
+        actions = [parser.OFPActionOutput(in_port, ofproto.OFPCML_NO_BUFFER)]
+        out = parser.OFPPacketOut(datapath=datapath, buffer_id=ofproto.OFP_NO_BUFFER,
+                                  in_port=ofproto.OFPP_CONTROLLER, actions=actions, data=data)
         datapath.send_msg(out)
 
     def handle_ipv4_packet(self, datapath, in_port, pkt):
-        ip = pkt.get_protocol(ipv4.ipv4)
+        ip_pkt = pkt.get_protocol(ipv4.ipv4)
 
-        if ip.dst == self.virtual_ip:
+        if ip_pkt.dst == self.virtual_ip:
             # If the destination IP is the virtual IP, balance the traffic
             out_port = self.get_next_server_port(datapath)
             actions = [OFPActionSetField(eth_dst=self.server_mac(out_port)),

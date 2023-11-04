@@ -76,7 +76,7 @@ class SimpleSwitch13(app_manager.RyuApp):
             print("no ip")
             dst=ip_header.dst
             src=ip_header.src
-        print(src,dst)
+        #print(src,dst)
         if (src, dst) in self.blocked_pairs:
             self.logger.info("Blocked traffic between %s and %s", src, dst)
             return
@@ -86,7 +86,7 @@ class SimpleSwitch13(app_manager.RyuApp):
             if(in_port==4):
                 self.count+=1
                 
-        print("H3 is sending",self.count,"to s1")
+        print("traffic count from h3 to s1 is:",self.count)
 
         self.logger.info("packet in %s %s %s %s", dpid, src, dst, in_port)
 
