@@ -19,7 +19,7 @@ class SimpleSwitch13(app_manager.RyuApp):
 
     SERVER1_IP = '10.0.0.4'
     SERVER1_MAC = '00:00:00:00:00:04'
-    SERVER1_PORT = 2
+    SERVER1_PORT = 1
     SERVER2_IP = '10.0.0.5'
     SERVER2_MAC = '00:00:00:00:00:05'
     SERVER2_PORT = 2
