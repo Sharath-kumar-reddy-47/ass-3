@@ -19,10 +19,10 @@ class SimpleSwitch13(app_manager.RyuApp):
 
     SERVER1_IP = '10.0.0.4'
     SERVER1_MAC = '00:00:00:00:00:04'
-    SERVER1_PORT = 1
+    SERVER1_PORT = 4
     SERVER2_IP = '10.0.0.5'
     SERVER2_MAC = '00:00:00:00:00:05'
-    SERVER2_PORT = 1
+    SERVER2_PORT = 4
 
     def _init_(self, *args, **kwargs):
         super(SimpleSwitch13, self)._init_(*args, **kwargs)
