@@ -26,6 +26,10 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.blocked_pairs = {
             (a1, a4),(a2,a5),(a3,a5),(a4,a1),(a5,a3),(a5,a2)
         }
+        self.block_mac={
+            ('00:00:00:00:00:01','00:00:00:00:00:04'),('00:00:00:00:00:02','00:00:00:00:00:05'),('00:00:00:00:00:03','00:00:00:00:00:05'),
+            ('00:00:00:00:00:04','00:00:00:00:00:01'),('00:00:00:00:00:05','00:00:00:00:00:03'),('00:00:00:00:00:05','00:00:00:00:00:02')
+        }
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
@@ -87,7 +91,7 @@ class SimpleSwitch13(app_manager.RyuApp):
             print("no ip")
             dst=ip_header.dst
             src=ip_header.src
-        if (src, dst) in self.blocked_pairs:
+        if (src, dst) in self.blocked_pairs or (src,dst) in self.block_mac:
             self.flag=True
             self.logger.info("Blocked traffic between %s and %s", src, dst)
             return
@@ -104,8 +108,8 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.logger.info("packet in %s %s %s %s", dpid, src, dst, in_port)
 
         # learn a mac address to avoid FLOOD next time.
-        #if self.flag==False:
-        self.mac_to_port[dpid][src] = in_port
+        if self.flag==False:
+            self.mac_to_port[dpid][src] = in_port
 
         if dst in self.mac_to_port[dpid] and self.flag==False:
             out_port = self.mac_to_port[dpid][dst]
