@@ -6,7 +6,6 @@ from ryu.ofproto import ofproto_v1_3
 from ryu.lib.packet import packet
 from ryu.lib.packet import ether_types
 from ryu.lib.packet import ipv4
-from ryu.lib.packet.ether_types import ETH_TYPE_IP
 from ryu.lib.packet import arp
 from ryu.lib.packet import ethernet
 from ryu.lib.mac import haddr_to_int
@@ -105,7 +104,7 @@ class SimpleSwitch13(app_manager.RyuApp):
                 self.logger.info("***************************")
                 self.logger.info("---Handle ARP Packet---")
                 # Build an ARP reply packet using source IP and source MAC
-                reply_packet = self.generate_arp_reply(arp_header.src_ip, arp_header.src)
+                reply_packet = self.generate_arp_reply(arp_header.src_ip, arp_header.src_mac)
                 actions = [parser.OFPActionOutput(in_port)]
                 packet_out = parser.OFPPacketOut(datapath=datapath, in_port=ofproto.OFPP_ANY,
                                                  data=reply_packet.data, actions=actions, buffer_id=0xffffffff)
@@ -133,27 +132,27 @@ class SimpleSwitch13(app_manager.RyuApp):
         datapath.send_msg(out)
 
     # Source IP and MAC passed here now become the destination for the reply packet
-    def generate_arp_reply(self, dst_ip, dst):
+    def generate_arp_reply(self, dst_ip, dst_mac):
         self.logger.info("Generating ARP Reply Packet")
-        self.logger.info("ARP request client IP: " + dst_ip + ", client MAC: " + dst)
+        self.logger.info("ARP request client IP: " + dst_ip + ", client MAC: " + dst_mac)
         arp_target_ip = dst_ip  # the sender IP
-        arp_target_mac = dst  # the sender MAC
+        arp_target_mac = dst_mac  # the sender MAC
         # Making the load balancer IP as the source IP
         src_ip = self.VIRTUAL_IP
 
         if haddr_to_int(arp_target_mac) % 2 == 1:
-            src = self.SERVER1_MAC
+            src_mac = self.SERVER1_MAC
         else:
-            src = self.SERVER2_MAC
-        self.logger.info("Selected server MAC: " + src)
+            src_mac = self.SERVER2_MAC
+        self.logger.info("Selected server MAC: " + src_mac)
 
         pkt = packet.Packet()
         pkt.add_protocol(
             ethernet.ethernet(
-                dst=dst, src=src, ethertype=ether_types.ETH_TYPE_ARP)
+                dst=dst_mac, src=src_mac, ethertype=ether_types.ETH_TYPE_ARP)
         )
         pkt.add_protocol(
-            arp.arp(opcode=arp.ARP_REPLY, src=src, src_ip=src_ip,
+            arp.arp(opcode=arp.ARP_REPLY, src=src_mac, src_ip=src_ip,
                     dst=arp_target_mac, dst_ip=arp_target_ip)
         )
         pkt.serialize()
