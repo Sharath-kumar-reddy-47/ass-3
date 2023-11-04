@@ -31,7 +31,7 @@ class SimpleLoadBalancer(app_manager.RyuApp):
 
         # Handle ARP requests for the virtual IP address
         actions = [OFPActionSetField(eth_dst="ff:ff:ff:ff:ff:ff"),
-                   ofproto_v1_3_parser.OFPActionOutput(ofproto.OFPP_FLOOD)]
+                   ofproto.OFPP_FLOOD]  # Use ofproto.OFPP_FLOOD here
         match = OFPMatch(eth_type=ether_types.ETH_TYPE_ARP, arp_op=arp.ARP_REQUEST, arp_tpa=target_ip)
         self.add_flow(datapath, 1, match, actions)
 
@@ -90,7 +90,7 @@ class SimpleLoadBalancer(app_manager.RyuApp):
             # If the destination IP is the virtual IP, balance the traffic
             out_port = self.get_next_server_port(datapath)
             actions = [OFPActionSetField(eth_dst=self.server_mac(out_port)),
-                       ofproto_v1_3_parser.OFPActionOutput(out_port)]
+                       ofproto.OFPP_TABLE]  # Use OFP_ACTION_OUTPUT instead
             match = OFPMatch(in_port=in_port, eth_type=ether_types.ETH_TYPE_IP, ipv4_dst=self.virtual_ip)
             self.add_flow(datapath, 1, match, actions)
 
@@ -101,7 +101,7 @@ class SimpleLoadBalancer(app_manager.RyuApp):
         return out_port
 
     def server_mac(self, port):
-        return mac.haddr_to_bin("00:00:00:00:00:%02x" % port)
+        return '00:00:00:00:00:%02x' % port
 
     def add_flow(self, datapath, priority, match, actions, buffer_id=None):
         ofproto = datapath.ofproto
