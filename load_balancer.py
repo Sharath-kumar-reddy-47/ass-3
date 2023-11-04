@@ -77,7 +77,7 @@ class SimpleLoadBalancer(app_manager.RyuApp):
 
         data = arp_reply.data
 
-        actions = [parser.OFPActionOutput(in_port, ofproto.OFPCML_NO_BUFFER)]
+        actions = [OFPActionOutput(in_port, ofproto.OFPCML_NO_BUFFER)]
         out = parser.OFPPacketOut(datapath=datapath, buffer_id=ofproto.OFP_NO_BUFFER,
                                   in_port=ofproto.OFPP_CONTROLLER, actions=actions, data=data)
         datapath.send_msg(out)
