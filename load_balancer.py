@@ -64,7 +64,7 @@ class SimpleLoadBalancer(app_manager.RyuApp):
         ofproto = datapath.ofproto
 
         dst_mac = eth.src
-        src_mac = '00:00:00:00:00:0' + str(in_port)  # Create a unique MAC address for each port
+        src_mac = eth.dst  # Use the original MAC address of the host
         target_ip = arp_pkt.src_ip
         sender_ip = arp_pkt.dst_ip
 
