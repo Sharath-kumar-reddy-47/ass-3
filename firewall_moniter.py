@@ -15,6 +15,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         super(SimpleSwitch13, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
         self.count=0
+        self.flag=False
         a1="10.0.0.1"
         a2="10.0.0.2"
         a3="10.0.0.3"
@@ -87,6 +88,7 @@ class SimpleSwitch13(app_manager.RyuApp):
             dst=ip_header.dst
             src=ip_header.src
         if (src, dst) in self.blocked_pairs:
+            self.flag=True
             self.logger.info("Blocked traffic between %s and %s", src, dst)
             return
     
@@ -102,7 +104,8 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.logger.info("packet in %s %s %s %s", dpid, src, dst, in_port)
 
         # learn a mac address to avoid FLOOD next time.
-        self.mac_to_port[dpid][src] = in_port
+        if self.flag==False:
+            self.mac_to_port[dpid][src] = in_port
 
         if dst in self.mac_to_port[dpid]:
             out_port = self.mac_to_port[dpid][dst]
