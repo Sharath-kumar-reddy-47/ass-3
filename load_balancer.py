@@ -4,7 +4,7 @@ from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 from ryu.ofproto import ofproto_v1_3
 from ryu.lib.packet import packet, ethernet, ether_types, arp, ipv4
-from ryu.ofproto.ofproto_v1_3_parser import OFPActionSetField, OFPMatch
+from ryu.ofproto.ofproto_v1_3_parser import OFPActionOutput, OFPMatch
 
 class SimpleLoadBalancer(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -30,8 +30,7 @@ class SimpleLoadBalancer(app_manager.RyuApp):
         ofproto = datapath.ofproto
 
         # Handle ARP requests for the virtual IP address
-        actions = [OFPActionSetField(eth_dst="ff:ff:ff:ff:ff:ff"),
-                   ofproto.OFPP_FLOOD]  # Use ofproto.OFPP_FLOOD here
+        actions = [OFPActionOutput(ofproto.OFPP_FLOOD)]  # Use OFPActionOutput here
         match = OFPMatch(eth_type=ether_types.ETH_TYPE_ARP, arp_op=arp.ARP_REQUEST, arp_tpa=target_ip)
         self.add_flow(datapath, 1, match, actions)
 
@@ -55,7 +54,7 @@ class SimpleLoadBalancer(app_manager.RyuApp):
 
     def handle_arp_packet(self, datapath, in_port, pkt):
         eth = pkt.get_protocols(ethernet.ethernet)[0]
-        arp_pkt = pkt.get_protocols(arp.arp)[0]
+        arp_pkt = pkt.get_protocol(arp.arp)
 
         if arp_pkt.opcode == arp.ARP_REQUEST and arp_pkt.dst_ip == self.virtual_ip:
             # If ARP request for virtual IP is received, reply with the MAC of switch port
@@ -89,8 +88,7 @@ class SimpleLoadBalancer(app_manager.RyuApp):
         if ip_pkt.dst == self.virtual_ip:
             # If the destination IP is the virtual IP, balance the traffic
             out_port = self.get_next_server_port(datapath)
-            actions = [OFPActionSetField(eth_dst=self.server_mac(out_port)),
-                       ofproto.OFPP_TABLE]  # Use OFP_ACTION_OUTPUT instead
+            actions = [OFPActionOutput(out_port)]  # Use OFPActionOutput
             match = OFPMatch(in_port=in_port, eth_type=ether_types.ETH_TYPE_IP, ipv4_dst=self.virtual_ip)
             self.add_flow(datapath, 1, match, actions)
 
@@ -99,9 +97,6 @@ class SimpleLoadBalancer(app_manager.RyuApp):
         out_port = (self.next_server_index % self.server_count) + 1
         self.next_server_index = (self.next_server_index + 1) % self.server_count
         return out_port
-
-    def server_mac(self, port):
-        return '00:00:00:00:00:%02x' % port
 
     def add_flow(self, datapath, priority, match, actions, buffer_id=None):
         ofproto = datapath.ofproto
