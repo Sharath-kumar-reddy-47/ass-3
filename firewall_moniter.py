@@ -107,7 +107,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         if self.flag==False:
             self.mac_to_port[dpid][src] = in_port
 
-        if dst in self.mac_to_port[dpid]:
+        if dst in self.mac_to_port[dpid] and self.flag==False:
             out_port = self.mac_to_port[dpid][dst]
         else:
             out_port = ofproto.OFPP_FLOOD
