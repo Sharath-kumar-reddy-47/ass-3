@@ -24,7 +24,7 @@ class SimpleSwitch13(app_manager.RyuApp):
     SERVER2_MAC = '00:00:00:00:00:05'
     SERVER2_PORT = 4
     def __init__(self, *args, **kwargs):
-        super(SimpleSwitch13, self)._init_(*args, **kwargs)
+        super(SimpleSwitch13, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
