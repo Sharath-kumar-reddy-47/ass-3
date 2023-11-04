@@ -78,7 +78,7 @@ class LoadBalancer(app_manager.RyuApp):
             self.load_balance(datapath, in_port, pkt)
             return
 
-        if dst_mac in the mac_to_port[dpid]:
+        if dst_mac in self.mac_to_port[dpid]:
             out_port = self.mac_to_port[dpid][dst_mac]
         else:
             out_port = ofproto.OFPP_FLOOD
