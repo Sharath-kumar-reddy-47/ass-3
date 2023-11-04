@@ -13,11 +13,11 @@ class CustomTopology(Topo):
         switch2 = self.addSwitch('s2')
 
         # Add 4 hosts to the topology
-        host1 = self.addHost('h1')
-        host2 = self.addHost('h2')
-        host3 = self.addHost('h3')
-        host4 = self.addHost('h4')
-        host5 = self.addHost('h5')
+        host1 = self.addHost('h1',mac='00:00:00:00:00:01')
+        host2 = self.addHost('h2',mac='00:00:00:00:00:02')
+        host3 = self.addHost('h3',mac='00:00:00:00:00:03')
+        host4 = self.addHost('h4',mac='00:00:00:00:00:04')
+        host5 = self.addHost('h5',mac='00:00:00:00:00:05')
 
         # Connect hosts to switches
         self.addLink(host1, switch1)
