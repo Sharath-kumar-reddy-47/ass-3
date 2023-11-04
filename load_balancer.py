@@ -7,7 +7,7 @@ from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
 from ryu.lib.packet import ipv4
 from ryu.lib.packet import arp
-from ryu.lib.packet.ether_types import ETH_TYPE_IP
+from ryu.lib.packet.ether_types import ether_types  # Corrected import
 
 class LoadBalancer(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -78,7 +78,7 @@ class LoadBalancer(app_manager.RyuApp):
             self.load_balance(datapath, in_port, pkt)
             return
 
-        if dst_mac in self.mac_to_port[dpid]:
+        if dst_mac in the mac_to_port[dpid]:
             out_port = self.mac_to_port[dpid][dst_mac]
         else:
             out_port = ofproto.OFPP_FLOOD
@@ -119,7 +119,7 @@ class LoadBalancer(app_manager.RyuApp):
                                   actions=actions, data=data)
         datapath.send_msg(out)
 
-        match = parser.OFPMatch(in_port=in_port, eth_type=ETH_TYPE_IP, ipv4_dst=self.VIRTUAL_IP)
+        match = parser.OFPMatch(in_port=in_port, eth_type=ether_types.ETH_TYPE_IP, ipv4_dst=self.VIRTUAL_IP)
         self.add_flow(datapath, 1, match, actions)
 
         self.logger.info("Load balanced packet to server %s (%s) from %s on port %d",
