@@ -144,31 +144,40 @@ class SimpleSwitch13(app_manager.RyuApp):
     # Source IP and MAC passed here now become the destination for the reply packet
     def generate_arp_reply(self, dst_ip, dst):
         self.logger.info("Generating ARP Reply Packet")
-        self.logger.info("ARP request client ip: " +
-                         dst_ip + ", client mac: " + dst)
+        self.logger.info("ARP request client ip: " + dst_ip + ", client mac: " + dst)
         arp_target_ip = dst_ip  # the sender ip
         arp_target_mac = dst  # the sender mac
         # Making the load balancer IP as source IP
         src_ip = self.VIRTUAL_IP
 
         if haddr_to_int(arp_target_mac) % 2 == 1:
-            src = self.SERVER1_MAC
+            src_mac = self.SERVER1_MAC
         else:
-            src = self.SERVER2_MAC
-        self.logger.info("Selected server MAC: " + src)
+            src_mac = self.SERVER2_MAC
+        self.logger.info("Selected server MAC: " + src_mac)
+
+        arp_reply = arp.arp(
+            opcode=arp.ARP_REPLY,
+            src_mac=src_mac,
+            src_ip=src_ip,
+            dst_mac=arp_target_mac,
+            dst_ip=arp_target_ip
+        )
+
+        eth_reply = ethernet.ethernet(
+            dst=dst,
+            src=src_mac,
+            ethertype=ether_types.ETH_TYPE_ARP
+        )
 
         pkt = packet.Packet()
-        pkt.add_protocol(
-            ethernet.ethernet(
-                dst=dst, src=src, ethertype=ether_types.ETH_TYPE_ARP)
-        )
-        pkt.add_protocol(
-            arp.arp(opcode=arp.ARP_REPLY, src=src, src_ip=src_ip,
-                    dst=arp_target_mac, dst_ip=arp_target_ip)
-        )
+        pkt.add_protocol(eth_reply)
+        pkt.add_protocol(arp_reply)
         pkt.serialize()
+
         self.logger.info("Done with processing the ARP reply packet")
         return pkt
+
 
     def handle_tcp_packet(self, datapath, in_port, ip_header, parser, dst, src):
         packet_handled = False
