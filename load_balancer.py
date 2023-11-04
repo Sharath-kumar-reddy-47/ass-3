@@ -3,19 +3,30 @@ from ryu.controller import ofp_event
 from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 from ryu.ofproto import ofproto_v1_3
-from ryu.lib.packet import packet, ethernet, ether_types, arp, ipv4
-from ryu.ofproto.ofproto_v1_3_parser import OFPActionOutput, OFPMatch
+from ryu.lib.packet import packet
+from ryu.lib.packet import ether_types
+from ryu.lib.packet import ipv4
+from ryu.lib.mac import haddr_to_int
+from ryu.lib.packet.ether_types import ETH_TYPE_IP
+from ryu.lib.packet import arp
+from ryu.lib.packet import ethernet
 
-class SimpleLoadBalancer(app_manager.RyuApp):
+
+class SimpleSwitch13(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
 
-    def __init__(self, *args, **kwargs):
-        super(SimpleLoadBalancer, self).__init__(*args, **kwargs)
+    VIRTUAL_IP = '10.0.0.42'  # The virtual server IP
+
+    SERVER1_IP = '10.0.0.4'
+    SERVER1_MAC = '00:00:00:00:00:04'
+    SERVER1_PORT = 1
+    SERVER2_IP = '10.0.0.5'
+    SERVER2_MAC = '00:00:00:00:00:05'
+    SERVER2_PORT = 1
+
+    def _init_(self, *args, **kwargs):
+        super(SimpleSwitch13, self)._init_(*args, **kwargs)
         self.mac_to_port = {}
-        self.server_ips = ["10.0.0.4", "10.0.0.5"]  # IPs of H4 and H5
-        self.virtual_ip = "10.0.0.42"
-        self.server_count = len(self.server_ips)
-        self.next_server_index = 0  # Index for round-robin load balancing
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
@@ -23,19 +34,32 @@ class SimpleLoadBalancer(app_manager.RyuApp):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
-        # Handle ARP requests for the virtual IP address
-        self.handle_arp_request(datapath, self.virtual_ip)
+        match = parser.OFPMatch()
+        actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER,
+                                          ofproto.OFPCML_NO_BUFFER)]
+        self.add_flow(datapath, 0, match, actions)
 
-    def handle_arp_request(self, datapath, target_ip):
+    def add_flow(self, datapath, priority, match, actions, buffer_id=None):
         ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
 
-        # Handle ARP requests for the virtual IP address
-        actions = [OFPActionOutput(ofproto.OFPP_FLOOD)]  # Use OFPActionOutput here
-        match = OFPMatch(eth_type=ether_types.ETH_TYPE_ARP, arp_op=arp.ARP_REQUEST, arp_tpa=target_ip)
-        self.add_flow(datapath, 1, match, actions)
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
+                                             actions)]
+        if buffer_id:
+            mod = parser.OFPFlowMod(datapath=datapath, buffer_id=buffer_id,
+                                    priority=priority, match=match,
+                                    instructions=inst)
+        else:
+            mod = parser.OFPFlowMod(datapath=datapath, priority=priority,
+                                    match=match, instructions=inst)
+        datapath.send_msg(mod)
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
+        
+        if ev.msg.msg_len < ev.msg.total_len:
+            self.logger.debug("packet truncated: only %s of %s bytes",
+                              ev.msg.msg_len, ev.msg.total_len)
         msg = ev.msg
         datapath = msg.datapath
         ofproto = datapath.ofproto
@@ -45,67 +69,140 @@ class SimpleLoadBalancer(app_manager.RyuApp):
         pkt = packet.Packet(msg.data)
         eth = pkt.get_protocols(ethernet.ethernet)[0]
 
+        if eth.ethertype == ether_types.ETH_TYPE_LLDP:
+            return
+        dst = eth.dst
+        src = eth.src
+
+        dpid = datapath.id
+        self.mac_to_port.setdefault(dpid, {})
+
+        self.logger.info("packet in %s %s %s %s", dpid,
+                         src, dst, in_port)
+
+        # learn a mac address to avoid FLOOD next time.
+        self.mac_to_port[dpid][src] = in_port
+
+        if dst in self.mac_to_port[dpid]:
+            out_port = self.mac_to_port[dpid][dst]
+        else:
+            out_port = ofproto.OFPP_FLOOD
+
+        actions = [parser.OFPActionOutput(out_port)]
+
+        # install a flow to avoid packet_in next time
+        if out_port != ofproto.OFPP_FLOOD:
+            match = parser.OFPMatch(
+                in_port=in_port, eth_dst=dst, eth_src=src)
+            # verify if we have a valid buffer_id, if yes avoid to send both
+            # flow_mod & packet_out
+            if msg.buffer_id != ofproto.OFP_NO_BUFFER:
+                self.add_flow(datapath, 10, match, actions, msg.buffer_id)
+                return
+            else:
+                self.add_flow(datapath, 10, match, actions)
+
+        # Handle ARP Packet
         if eth.ethertype == ether_types.ETH_TYPE_ARP:
-            # Handle ARP packets
-            self.handle_arp_packet(datapath, in_port, pkt)
-        elif eth.ethertype == ether_types.ETH_TYPE_IP:
-            # Handle IPv4 packets
-            self.handle_ipv4_packet(datapath, in_port, pkt)
+            arp_header = pkt.get_protocol(arp.arp)
 
-    def handle_arp_packet(self, datapath, in_port, pkt):
-        eth = pkt.get_protocols(ethernet.ethernet)[0]
-        arp_pkt = pkt.get_protocol(arp.arp)
+            if arp_header.dst_ip == self.VIRTUAL_IP and arp_header.opcode == arp.ARP_REQUEST:
+                self.logger.info("***************************")
+                self.logger.info("---Handle ARP Packet---")
+                # Build an ARP reply packet using source IP and source MAC
+                reply_packet = self.generate_arp_reply(
+                    arp_header.src_ip, arp_header.src)
+                actions = [parser.OFPActionOutput(in_port)]
+                packet_out = parser.OFPPacketOut(datapath=datapath, in_port=ofproto.OFPP_ANY,
+                                                 data=reply_packet.data, actions=actions, buffer_id=0xffffffff)
+                datapath.send_msg(packet_out)
+                self.logger.info("Sent the ARP reply packet")
+                return
 
-        if arp_pkt.opcode == arp.ARP_REQUEST and arp_pkt.dst_ip == self.virtual_ip:
-            # If ARP request for virtual IP is received, reply with the MAC of switch port
-            self.reply_to_arp(datapath, eth, arp_pkt, in_port)
+        # Handle TCP Packet
+        if eth.ethertype == ETH_TYPE_IP:
+            self.logger.info("***************************")
+            self.logger.info("---Handle TCP Packet---")
+            ip_header = pkt.get_protocol(ipv4.ipv4)
 
-    def reply_to_arp(self, datapath, eth, arp_pkt, in_port):
-        ofproto = datapath.ofproto
+            packet_handled = self.handle_tcp_packet(
+                datapath, in_port, ip_header, parser, dst, src)
+            self.logger.info("TCP packet handled: " + str(packet_handled))
+            if packet_handled:
+                return
 
-        dst_mac = eth.src
-        src_mac = eth.dst  # Use the original MAC address of the host
-        target_ip = arp_pkt.src_ip
-        sender_ip = arp_pkt.dst_ip
+        # Send if other packet
+        data = None
+        if msg.buffer_id == ofproto.OFP_NO_BUFFER:
+            data = msg.data
 
-        arp_reply = packet.Packet()
-        arp_reply.add_protocol(ethernet.ethernet(ethertype=ether_types.ETH_TYPE_ARP,
-                                                 dst=dst_mac, src=src_mac))
-        arp_reply.add_protocol(arp.arp(opcode=arp.ARP_REPLY,
-                                     src_mac=src_mac, src_ip=sender_ip,
-                                     dst_mac=dst_mac, dst_ip=target_ip))
-
-        data = arp_reply.data
-
-        actions = [OFPActionOutput(in_port, ofproto.OFPCML_NO_BUFFER)]
-        out = parser.OFPPacketOut(datapath=datapath, buffer_id=ofproto.OFP_NO_BUFFER,
-                                  in_port=ofproto.OFPP_CONTROLLER, actions=actions, data=data)
+        out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
+                                  in_port=in_port, actions=actions, data=data)
         datapath.send_msg(out)
 
-    def handle_ipv4_packet(self, datapath, in_port, pkt):
-        ip_pkt = pkt.get_protocol(ipv4.ipv4)
+    # Source IP and MAC passed here now become the destination for the reply packet
+    def generate_arp_reply(self, dst_ip, dst):
+        self.logger.info("Generating ARP Reply Packet")
+        self.logger.info("ARP request client ip: " +
+                         dst_ip + ", client mac: " + dst)
+        arp_target_ip = dst_ip  # the sender ip
+        arp_target_mac = dst  # the sender mac
+        # Making the load balancer IP as source IP
+        src_ip = self.VIRTUAL_IP
 
-        if ip_pkt.dst == self.virtual_ip:
-            # If the destination IP is the virtual IP, balance the traffic
-            out_port = self.get_next_server_port(datapath)
-            actions = [OFPActionOutput(out_port)]  # Use OFPActionOutput
-            match = OFPMatch(in_port=in_port, eth_type=ether_types.ETH_TYPE_IP, ipv4_dst=self.virtual_ip)
-            self.add_flow(datapath, 1, match, actions)
-
-    def get_next_server_port(self, datapath):
-        # Round-robin load balancing to distribute traffic to servers
-        out_port = (self.next_server_index % self.server_count) + 1
-        self.next_server_index = (self.next_server_index + 1) % self.server_count
-        return out_port
-
-    def add_flow(self, datapath, priority, match, actions, buffer_id=None):
-        ofproto = datapath.ofproto
-        parser = datapath.ofproto_parser
-
-        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
-        if buffer_id:
-            mod = parser.OFPFlowMod(datapath=datapath, buffer_id=buffer_id, priority=priority, match=match, instructions=inst)
+        if haddr_to_int(arp_target_mac) % 2 == 1:
+            src = self.SERVER1_MAC
         else:
-            mod = parser.OFPFlowMod(datapath=datapath, priority=priority, match=match, instructions=inst)
-        datapath.send_msg(mod)
+            src = self.SERVER2_MAC
+        self.logger.info("Selected server MAC: " + src)
 
+        pkt = packet.Packet()
+        pkt.add_protocol(
+            ethernet.ethernet(
+                dst=dst, src=src, ethertype=ether_types.ETH_TYPE_ARP)
+        )
+        pkt.add_protocol(
+            arp.arp(opcode=arp.ARP_REPLY, src=src, src_ip=src_ip,
+                    dst=arp_target_mac, dst_ip=arp_target_ip)
+        )
+        pkt.serialize()
+        self.logger.info("Done with processing the ARP reply packet")
+        return pkt
+
+    def handle_tcp_packet(self, datapath, in_port, ip_header, parser, dst, src):
+        packet_handled = False
+
+        if ip_header.dst == self.VIRTUAL_IP:
+            if dst == self.SERVER1_MAC:
+                server_dst_ip = self.SERVER1_IP
+                server_out_port = self.SERVER1_PORT
+            else:
+                server_dst_ip = self.SERVER2_IP
+                server_out_port = self.SERVER2_PORT
+
+            # Route to server
+            match = parser.OFPMatch(in_port=in_port, eth_type=ETH_TYPE_IP, ip_proto=ip_header.proto,
+                                    ipv4_dst=self.VIRTUAL_IP)
+
+            actions = [parser.OFPActionSetField(ipv4_dst=server_dst_ip),
+                       parser.OFPActionOutput(server_out_port)]
+
+            self.add_flow(datapath, 20, match, actions)
+            self.logger.info("<==== Added TCP Flow- Route to Server: " + str(server_dst_ip) +
+                             " from Client :" + str(ip_header.src) + " on Switch Port:" +
+                             str(server_out_port) + "====>")
+
+            # Reverse route from server
+            match = parser.OFPMatch(in_port=server_out_port, eth_type=ETH_TYPE_IP,
+                                    ip_proto=ip_header.proto,
+                                    ipv4_src=server_dst_ip,
+                                    eth_dst=src)
+            actions = [parser.OFPActionSetField(ipv4_src=self.VIRTUAL_IP),
+                       parser.OFPActionOutput(in_port)]
+
+            self.add_flow(datapath, 20, match, actions)
+            self.logger.info("<==== Added TCP Flow- Reverse route from Server: " + str(server_dst_ip) +
+                             " to Client: " + str(src) + " on Switch Port:" +
+                             str(in_port) + "====>")
+            packet_handled = True
+        return packet_handled
