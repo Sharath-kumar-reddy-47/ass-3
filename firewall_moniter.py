@@ -108,10 +108,10 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.logger.info("packet in %s %s %s %s", dpid, src, dst, in_port)
 
         # learn a mac address to avoid FLOOD next time.
-        if self.flag==False:
-            self.mac_to_port[dpid][src] = in_port
+        
+        self.mac_to_port[dpid][src] = in_port
 
-        if dst in self.mac_to_port[dpid] and self.flag==False:
+        if dst in self.mac_to_port[dpid]:
             out_port = self.mac_to_port[dpid][dst]
         else:
             out_port = ofproto.OFPP_FLOOD
