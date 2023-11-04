@@ -15,7 +15,7 @@ from ryu.lib.packet import ethernet
 class SimpleSwitch13(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
 
-    VIRTUAL_IP = '10.0.0.42'  # The virtual server IP
+    VIRTUAL_IP = '10.0.0.42'  #virtual server IP
 
     SERVER1_IP = '10.0.0.4'
     SERVER1_MAC = '00:00:00:00:00:04'
